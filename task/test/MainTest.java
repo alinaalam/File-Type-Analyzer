@@ -3,17 +3,21 @@ import analyzer.Main;
 import org.hyperskill.hstest.v6.stage.BaseStageTest;
 import org.hyperskill.hstest.v6.testcase.CheckResult;
 import org.hyperskill.hstest.v6.testcase.TestCase;
+import org.junit.AfterClass;
+import org.junit.Assert;
 import org.junit.BeforeClass;
 
+import java.io.File;
+import java.io.IOException;
+import java.lang.management.ManagementFactory;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.List;
+import java.util.function.Function;
 
 public class MainTest extends BaseStageTest<Clue> {
-    static String largeContent;
-
-    String pdf = "PDF document";
-    String doc = "DOC document";
-    String unknown = "Unknown file type";
-    String file = "doc.pdf";
+    private static final String CURRENT_DIR = System.getProperty("user.dir") + File.separator;
+    private static int startedThreadCount = 0;
 
     public MainTest() throws Exception {
         super(Main.class);
@@ -22,86 +26,119 @@ public class MainTest extends BaseStageTest<Clue> {
     @Override
     public List<TestCase<Clue>> generate() {
         return List.of(
+            //Testing basic cases
             new TestCase<Clue>()
-                .addArguments(new String[] {
-                        "--naive",
-                        file,
-                        "%PDF%PDF%PDF%PDF%PDF%PDF%PDF%PDF%PDF%PDF%PDF%PDF%PDF%PDF%PDF%PDF-",
-                        pdf
-                    })
-                .addFile(file, largeContent)
-                .setAttach(new Clue(pdf)),
+                .addArguments(new String[]
+                    {"test_files", "%PDF-", "PDF document"})
+                .addFile("test_files"+File.separator+"doc.pdf", "PFDF%PDF-PDF")
+                .addFile("test_files"+File.separator+"text.txt", "PF%PDF-PDFABC")
+                .setAttach(new Clue("doc.pdf: PDF document\n" +
+                    "text.txt: PDF document", 2, "The files had following content: " +"\n" +
+                    "\"PFDF%PDF-PDF\", \"PF%PDF-PDFABC\" and were analyzed for pattern \"%PDF-\"")),
 
             new TestCase<Clue>()
-                .addArguments(new String[] {
-                        "--KMP",
-                        file,
-                        "%PDF%PDF%PDF%PDF%PDF%PDF%PDF%PDF%PDF%PDF%PDF%PDF%PDF%PDF%PDF%PDF-",
-                        doc
-                    })
-                .addFile(file, largeContent)
-                .setAttach(new Clue(doc)),
+                .addArguments(new String[]
+                    {"test_files", "-----BEGIN\\CERTIFICATE-----", "PEM certificate"})
+                .addFile("test_files"+File.separator+"file.pem", "PF-----BEGIN\\CERTIFICATE-----DF%PDF-PDF")
+                .addFile("test_files"+File.separator+"file.pdf", "PF%P-----BEGIN\\CERTIFICATE-----DF-PDF")
+                .setAttach(new Clue("file.pdf: PEM certificate\n" +
+                    "file.pem: PEM certificate", 2, "")),
 
+            //Testing with only one file in the directory
             new TestCase<Clue>()
-                .addArguments(new String[] {
-                        "--naive",
-                        file,
-                        "%PDF%PDF%PDF%PDF%PDF%PDF%PDF%PDF%PDF%PDF%PDF%PDF%PDF%PDF%PDF%PDF+",
-                        unknown
-                    })
-                .addFile(file, largeContent)
-                .setAttach(new Clue(unknown)),
+                .addArguments(new String[]
+                    {"test_files", "-----BEGIN\\CERTIFICATE-----", "PEM certificate"})
+                .addFile("test_files"+File.separator+"the_only_file.pem", "PF-----BEGIN\\CERTIFICATE-----DF%PDF-PDF")
+                .setAttach(new Clue ("the_only_file.pem: PEM certificate", 1, "")),
 
+            //Testing with 10 files in the directory
             new TestCase<Clue>()
-                .addArguments(new String[] {
-                        "--KMP",
-                        file,
-                        "%PDF%PDF%PDF%PDF%PDF%PDF%PDF%PDF%PDF%PDF%PDF%PDF%PDF%PDF%PDF%PDF+",
-                        unknown
-                    })
-                .addFile(file, largeContent)
-                .setAttach(new Clue(unknown))
+                .addArguments(new String[]
+                    {"test_files", "%txt-", "TXT document"})
+                .addFile("test_files"+File.separator+"doc0.pdf", "PFDF%PDF%txt-PDF")
+                .addFile("test_files"+File.separator+"doc1.pdf", "PF%PDF%txt-PDF")
+                .addFile("test_files"+File.separator+"doc2.pdf", "PFDF%PDF%txt-PF")
+                .addFile("test_files"+File.separator+"doc3.pdf", "PF%PF%txt-PDF")
+                .addFile("test_files"+File.separator+"doc4.pdf", "PFDF%PDF%txt-PDF")
+                .addFile("test_files"+File.separator+"doc5.pdf", "PF%PDF%txt-PDF")
+                .addFile("test_files"+File.separator+"doc6.pdf", "PFF%PDF%txt-PDF")
+                .addFile("test_files"+File.separator+"doc7.pdf", "PF%DF%txt-PDF")
+                .addFile("test_files"+File.separator+"doc8.pdf", "PFDF%PDFPDF")
+                .addFile("test_files"+File.separator+"doc9.txt", "PF%PDF%PDF")
+                .setAttach(new Clue("doc0.pdf: TXT document\n" +
+                    "doc1.pdf: TXT document\n" +
+                    "doc2.pdf: TXT document\n" +
+                    "doc3.pdf: TXT document\n" +
+                    "doc4.pdf: TXT document\n" +
+                    "doc5.pdf: TXT document\n" +
+                    "doc6.pdf: TXT document\n" +
+                    "doc7.pdf: TXT document\n" +
+                    "doc8.pdf: Unknown file type\n" +
+                    "doc9.txt: Unknown file type", 10, ""))
         );
     }
 
     @Override
     public CheckResult check(String reply, Clue clue) {
-        reply = reply.strip();
+        long currentThreads = ManagementFactory.getThreadMXBean().getTotalStartedThreadCount();
+        long startedThisTestThread = currentThreads - startedThreadCount;
 
-        if (reply.contains(doc) && reply.contains(pdf)) {
-            return CheckResult.FALSE("There are both \"" + doc + "\" and \"" + pdf + "\"" +
-                " in output, should be only one of them");
-        } else if (reply.contains(doc) && reply.contains(unknown)) {
-            return CheckResult.FALSE("There are both \"" + doc + "\" and \"" + unknown + "\"" +
-                " in output, should be only one of them");
-        } else if (reply.contains(pdf) && reply.contains(unknown)) {
-            return CheckResult.FALSE("There are both \"" + pdf + "\" and \"" + unknown + "\"" +
-                " in output, should be only one of them");
+        long neededThreads = startedThreadCount + clue.threadsStarted;
+        long startedThisTestNeededThreads = neededThreads - startedThreadCount;
+
+        Function<Long, String> threadName = count ->
+            count + " thread" + (count == 1 ? "" : "s");
+
+        if (startedThisTestThread < startedThisTestNeededThreads) {
+            return CheckResult.FALSE(
+                "There were not enough Threads started, " +
+                "you should process each file in a different Thread. " +
+                "\nYou started " + threadName.apply(startedThisTestThread) + ", " +
+                "but you need to start " + threadName.apply(startedThisTestNeededThreads) + ". " +
+                "\nThe executor.invokeAll() method might help. Also, don't forget to call .shutdown()."
+            );
         }
-
-        if (!reply.contains(clue.response)) {
-            return CheckResult.FALSE("Your output does not contain \"" + clue.response + "\", but should." +
-                "\n\nYour output:\n" + reply);
+        startedThreadCount = (int) currentThreads;
+        String actual = reply.strip();
+        if (actual.isEmpty()) {
+            actual = "No output (check if you exited " +
+                "from main too early, you should wait until all threads are finishes)";
         }
-
-        if (!reply.contains("seconds")) {
-            return CheckResult.FALSE("Your output does not contain \"seconds\", but should." +
-                "\n\nYour output:\n" + reply);
-        }
-
-        return CheckResult.TRUE;
+        String expected = clue.output;
+        return new CheckResult(actual.equals(expected),
+            clue.feedback + "\nExpected: \n" + expected
+            + "\nActual: \n" + actual);
     }
 
     @BeforeClass
-    public static void setLargeContent() {
-
-        StringBuilder content = new StringBuilder();
-
-        for (int i = 0; i< 6000; i++) {
-            content.append("%PDF");
+    public static void generateTestFilesDirectory() {
+        try {
+            Files.deleteIfExists(Paths.get(CURRENT_DIR + "test_files"));
         }
-
-        content.append("%PDF-");
-        largeContent = content.toString();
+        catch (IOException ex) {
+            ex.printStackTrace();
+        }
+        try {
+            Files.createDirectory(Paths.get(CURRENT_DIR + "test_files"));
+        }
+        catch (IOException ex) {
+            ex.printStackTrace();
+        }
     }
+
+    @BeforeClass
+    public static void countThreadsBefore() {
+        startedThreadCount += ManagementFactory.getThreadMXBean().getTotalStartedThreadCount();
+    }
+
+    @AfterClass
+    public static void deleteTestFilesDirectory() {
+        try {
+            Files.deleteIfExists(Paths.get(CURRENT_DIR + "test_files"));
+        }
+        catch (IOException ex) {
+            ex.printStackTrace();
+        }
+    }
+
 }
