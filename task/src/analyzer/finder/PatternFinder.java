@@ -1,6 +1,7 @@
 package analyzer.finder;
 
 import analyzer.domain.KMP;
+import analyzer.domain.Pattern;
 import analyzer.infra.cmd.ParamsParser;
 
 import java.io.IOException;
@@ -10,12 +11,12 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class PatternFinder {
 
@@ -68,8 +69,10 @@ public class PatternFinder {
                 try {
                     Path path = Path.of(file);
                     String fileContent = Files.readString(path);
-                    if (KMP.isPatternExists(fileContent, paramsParser.getPattern())) {
-                        return path.getFileName() + ": " + paramsParser.getType();
+                    List<Pattern> matchedPatterns = getMatchedPatterns(fileContent);
+                    if (!matchedPatterns.isEmpty()) {
+                        Collections.sort(matchedPatterns);
+                        return path.getFileName() + ": " + matchedPatterns.get(0).getType();
                     }
                     else {
                         return path.getFileName() + ": Unknown file type";
@@ -82,5 +85,18 @@ public class PatternFinder {
         }
 
         return listOfCallables;
+    }
+
+    private List<Pattern> getMatchedPatterns(String fileContent) {
+        List<Pattern> matchedPatterns = new ArrayList<>();
+        Map<String, Pattern> availablePatterns = paramsParser.getPatterns();
+
+        for (String pattern : availablePatterns.keySet()) {
+            if(KMP.isPatternExists(fileContent, pattern)) {
+                matchedPatterns.add(availablePatterns.get(pattern));
+            }
+        }
+
+        return matchedPatterns;
     }
 }
