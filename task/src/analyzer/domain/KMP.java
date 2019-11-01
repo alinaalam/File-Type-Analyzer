@@ -1,8 +1,8 @@
 package analyzer.domain;
 
-public class KMP {
+public class KMP implements PatternAlgorithm {
 
-    public static boolean isPatternExists(String text, String pattern) {
+    public boolean doesPatternExist(String text, String pattern) {
         int[] prefixArray = prefixFunction(text);
         int j = 0;
 
@@ -20,7 +20,7 @@ public class KMP {
         return false;
     }
 
-    private static int[] prefixFunction(String str) {
+    private int[] prefixFunction(String str) {
         /* 1 */
         int[] prefixFunc = new int[str.length()];
 

@@ -2,6 +2,7 @@ package analyzer.finder;
 
 import analyzer.domain.KMP;
 import analyzer.domain.Pattern;
+import analyzer.domain.PatternAlgorithm;
 import analyzer.infra.cmd.ParamsParser;
 
 import java.io.IOException;
@@ -21,9 +22,11 @@ import java.util.stream.Collectors;
 public class PatternFinder {
 
     private ParamsParser paramsParser;
+    private PatternAlgorithm patternAlgorithm;
 
-    public PatternFinder(ParamsParser paramsParser) {
+    public PatternFinder(ParamsParser paramsParser, PatternAlgorithm patternAlgorithm) {
         this.paramsParser = paramsParser;
+        this.patternAlgorithm = patternAlgorithm;
     }
 
     public void findPatternInFiles() throws Exception {
@@ -92,7 +95,7 @@ public class PatternFinder {
         Map<String, Pattern> availablePatterns = paramsParser.getPatterns();
 
         for (String pattern : availablePatterns.keySet()) {
-            if(KMP.isPatternExists(fileContent, pattern)) {
+            if(patternAlgorithm.doesPatternExist(fileContent, pattern)) {
                 matchedPatterns.add(availablePatterns.get(pattern));
             }
         }
